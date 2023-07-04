@@ -1,0 +1,4 @@
+pySerial
+mypy
+flake8
+black
