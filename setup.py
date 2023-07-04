@@ -9,4 +9,5 @@ setup(
     url="https://github.com/DragonMinded/vtpy",
     packages=["vtpy"],
     requires=["pySerial"],
+    include_package_data=True,
 )
