@@ -188,6 +188,55 @@ class Terminal:
                     return alt(b"\x6D")
                 if data == "\u2518":
                     return alt(b"\x6A")
+                if data == "\u253c":
+                    return alt(b"\x6e")
+                if data == "\u251c":
+                    return alt(b"\x74")
+                if data == "\u2524":
+                    return alt(b"\x75")
+                if data == "\u2534":
+                    return alt(b"\x76")
+                if data == "\u252c":
+                    return alt(b"\x77")
+
+                # Accented character mappings to VT-100 non-accented standard characters.
+                if data in {"\u00c0", "\u00c1", "\u00c2", "\u00c3", "\u00c4", "\u00c5"}:
+                    return norm(b"A")
+                if data == "\u00c7":
+                    return norm(b"C")
+                if data in {"\u00c8", "\u00c9", "\u00ca", "\u00cb"}:
+                    return norm(b"E")
+                if data in {"\u00cc", "\u00cd", "\u00ce", "\u00cf"}:
+                    return norm(b"I")
+                if data == "\u00d0":
+                    return norm(b"D")
+                if data == "\u00d1":
+                    return norm(b"N")
+                if data in {"\u00d2", "\u00d3", "\u00d4", "\u00d5", "\u00d6"}:
+                    return norm(b"O")
+                if data in {"\u00d9", "\u00da", "\u00db", "\u00dc"}:
+                    return norm(b"U")
+                if data == "\u00dd":
+                    return norm(b"Y")
+
+                if data in {"\u00e0", "\u00e1", "\u00e2", "\u00e3", "\u00e4", "\u00e5"}:
+                    return norm(b"a")
+                if data == "\u00e7":
+                    return norm(b"c")
+                if data in {"\u00e8", "\u00e9", "\u00ea", "\u00eb"}:
+                    return norm(b"e")
+                if data in {"\u00ec", "\u00ed", "\u00ee", "\u00ef"}:
+                    return norm(b"i")
+                if data == "\u00f0":
+                    return norm(b"o")
+                if data == "\u00f1":
+                    return norm(b"n")
+                if data in {"\u00f2", "\u00f3", "\u00f4", "\u00f5", "\u00f6"}:
+                    return norm(b"o")
+                if data in {"\u00f9", "\u00fa", "\u00fb", "\u00fc"}:
+                    return norm(b"u")
+                if data in {"\u00fd", "\u00ff"}:
+                    return norm(b"y")
 
                 # Fill-drawing mapping hacks.
                 if data == "\u2591":
@@ -254,12 +303,30 @@ class Terminal:
                         + ((self.ESCAPE + self.SET_BOLD) if self.bolded else b"")
                     )
 
+                # Degrees symbol.
+                if data == "\xb0":
+                    return alt(b"\x66")
                 # +/- combined.
                 if data == "\xb1":
                     return alt(b"\x67")
-                # degrees
-                if data == "\xb0":
-                    return alt(b"\x66")
+                # Less than or equal
+                if data == "\u2264":
+                    return alt(b"\x79")
+                # Greater than or equal.
+                if data == "\u2265":
+                    return alt(b"\x7a")
+                # Pi.
+                if data == "\u03c0":
+                    return alt(b"\x7b")
+                # Not equal to symbol.
+                if data == "\u2260":
+                    return alt(b"\x7c")
+                # Pound symbol.
+                if data == "\u00a3":
+                    return alt(b"\x7d")
+                # Moddle dot.
+                if data == "\u00b7":
+                    return alt(b"\x7e")
 
                 # Unknown unicode.
                 return alt(b"\x60")
