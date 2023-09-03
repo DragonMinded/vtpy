@@ -1,13 +1,33 @@
 import serial  # type: ignore
+import select
+import sys
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
+
+
+class STDIOWrapper:
+    def __init__(self, timeout: Optional[float]=0.01) -> None:
+        self.timeout = timeout
+
+    def write(self, data: bytes) -> int:
+        sys.stdout.buffer.write(data)
+        return len(data)
+
+    def read(self, size: int=1) -> bytes:
+        if self.timeout is not None:
+            # First, select on stdin and wait the timeout seconds.
+            rfds, _, _ = select.select([sys.stdin], [], [], self.timeout)
+            if not rfds:
+                return b""
+
+        return sys.stdin.buffer.read(1)
 
 
 class TerminalException(Exception):
     pass
 
 
-class Terminal:
+class TerminalBase:
     ESCAPE: bytes = b"\x1B"
 
     BOX_CHARSET: bytes = b"(0"
@@ -53,8 +73,8 @@ class Terminal:
     CHECK_INTERVAL: float = 1.0
     MAX_FAILURES: int = 3
 
-    def __init__(self, port: str, baud: int) -> None:
-        self.serial = serial.Serial(port, baud, timeout=0.01)
+    def __init__(self, interface: Union[serial.Serial, STDIOWrapper]) -> None:
+        self.interface = interface
         self.leftover = b""
         self.pending: List[bytes] = []
         self.responses: List[bytes] = []
@@ -98,7 +118,7 @@ class Terminal:
 
     def sendCommand(self, cmd: bytes) -> None:
         self.cursor = (-1, -1)
-        self.serial.write(self.ESCAPE)
+        self.interface.write(self.ESCAPE)
 
         if cmd == self.SET_NORMAL:
             self.reversed = False
@@ -112,7 +132,7 @@ class Terminal:
         elif cmd == self.SET_80_COLUMNS:
             self.columns = 80
 
-        self.serial.write(cmd)
+        self.interface.write(cmd)
 
     def moveCursor(self, row: int, col: int) -> None:
         if row < 1 or row > self.rows:
@@ -332,7 +352,7 @@ class Terminal:
                 return alt(b"\x60")
 
         self.sendCommand(self.NORMAL_CHARSET)
-        self.serial.write(b"".join(fb(s) for s in text))
+        self.interface.write(b"".join(fb(s) for s in text))
         self.sendCommand(self.NORMAL_CHARSET)
 
     def setAutoWrap(self, value: bool = True) -> None:
@@ -389,7 +409,7 @@ class Terminal:
                 val = self.leftover[0:1]
                 self.leftover = self.leftover[1:]
             else:
-                val = self.serial.read()
+                val = self.interface.read()
 
             if not val:
                 if gotResponse or (timeout and (time.time() - start) > timeout):
@@ -474,3 +494,13 @@ class Terminal:
             val = self.pending[0]
             self.pending = self.pending[1:]
         return val
+
+
+class SerialTerminal(TerminalBase):
+    def __init__(self, port: str, baud: int) -> None:
+        super().__init__(serial.Serial(port, baud, timeout=0.01))
+
+
+class STDIOTerminal(TerminalBase):
+    def __init__(self) -> None:
+        super().__init__(STDIOWrapper(timeout=0.01))

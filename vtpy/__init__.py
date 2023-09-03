@@ -1,3 +1,3 @@
-from .terminal import Terminal, TerminalException
+from .terminal import SerialTerminal, TerminalException
 
-__all__ = ["Terminal", "TerminalException"]
+__all__ = ["SerialTerminal", "TerminalException"]
