@@ -2,18 +2,19 @@ import serial  # type: ignore
 import select
 import sys
 import time
+from abc import ABC
 from typing import List, Optional, Tuple, Union
 
 
 class STDIOWrapper:
-    def __init__(self, timeout: Optional[float]=0.01) -> None:
+    def __init__(self, timeout: Optional[float] = 0.01) -> None:
         self.timeout = timeout
 
     def write(self, data: bytes) -> int:
         sys.stdout.buffer.write(data)
         return len(data)
 
-    def read(self, size: int=1) -> bytes:
+    def read(self, size: int = 1) -> bytes:
         if self.timeout is not None:
             # First, select on stdin and wait the timeout seconds.
             rfds, _, _ = select.select([sys.stdin], [], [], self.timeout)
@@ -27,7 +28,7 @@ class TerminalException(Exception):
     pass
 
 
-class TerminalBase:
+class Terminal(ABC):
     ESCAPE: bytes = b"\x1B"
 
     BOX_CHARSET: bytes = b"(0"
@@ -496,11 +497,11 @@ class TerminalBase:
         return val
 
 
-class SerialTerminal(TerminalBase):
+class SerialTerminal(Terminal):
     def __init__(self, port: str, baud: int) -> None:
         super().__init__(serial.Serial(port, baud, timeout=0.01))
 
 
-class STDIOTerminal(TerminalBase):
+class STDIOTerminal(Terminal):
     def __init__(self) -> None:
         super().__init__(STDIOWrapper(timeout=0.01))
