@@ -498,8 +498,8 @@ class Terminal(ABC):
 
 
 class SerialTerminal(Terminal):
-    def __init__(self, port: str, baud: int) -> None:
-        super().__init__(serial.Serial(port, baud, timeout=0.01))
+    def __init__(self, port: str, baud: int, flowControl: bool = False) -> None:
+        super().__init__(serial.Serial(port, baud, xonxoff=flowControl, timeout=0.01))
 
 
 class STDIOTerminal(Terminal):
