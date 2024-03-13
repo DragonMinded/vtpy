@@ -447,9 +447,12 @@ class Terminal(ABC):
                                 return accum[: (offs + 1)]
 
                         # This can happen if the user presses the "ESC" key which sends the escape
-                        # sequence raw with nothing else available. Requeue this escape key and the
-                        # rest of the accum and hope the user presses something else next.
+                        # sequence raw with nothing else available. It can also happen if the terminal
+                        # sends responses too slow to us and we've partially accumulated a value.
+                        # Requeue this escape key and the rest of the accum and hope the user presses
+                        # something else next.
                         self.leftover += self.ESCAPE + accum
+                        accum = b""
                     else:
                         accum = b""
                         if timeout:
