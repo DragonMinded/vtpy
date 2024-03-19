@@ -64,6 +64,11 @@ class Terminal(ABC):
     SAVE_CURSOR: bytes = b"7"
     RESTORE_CURSOR: bytes = b"8"
 
+    DOUBLE_HEIGHT_TOP: bytes = b"#3"
+    DOUBLE_HEIGHT_BOTTOM: bytes = b"#4"
+    DOUBLE_WIDTH: bytes = b"#6"
+    NORMAL_SIZE: bytes = b"#5"
+
     UP: bytes = b"[A"
     DOWN: bytes = b"[B"
     LEFT: bytes = b"[D"
