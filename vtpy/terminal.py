@@ -58,7 +58,8 @@ class Terminal(ABC):
     TURN_OFF_AUTOWRAP: bytes = b"[?7l"
 
     SET_BOLD: bytes = b"[1m"
-    SET_NORMAL: bytes = b"[m"
+    SET_NORMAL: bytes = b"[0m"
+    SET_UNDERLINE: bytes = b"[4m"
     SET_REVERSE: bytes = b"[7m"
 
     SAVE_CURSOR: bytes = b"7"
