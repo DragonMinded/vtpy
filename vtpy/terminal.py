@@ -87,6 +87,8 @@ class Terminal(ABC):
         self.responses: List[bytes] = []
         self.reversed = False
         self.bolded = False
+        self.underlined = False
+        self.autowrap = False
         self.lastPolled = time.time()
         self.pollFailures = 0
 
@@ -124,20 +126,52 @@ class Terminal(ABC):
         self.checkOk()
 
     def sendCommand(self, cmd: bytes) -> None:
-        self.cursor = (-1, -1)
         self.interface.write(self.ESCAPE)
+
+        # Whether we've lost track of the cursor with this or not.
+        reset = True
 
         if cmd == self.SET_NORMAL:
             self.reversed = False
             self.bolded = False
+            self.underlined = False
+            reset = False
         elif cmd == self.SET_REVERSE:
             self.reversed = True
+            reset = False
         elif cmd == self.SET_BOLD:
             self.bolded = True
+            reset = False
+        elif cmd == self.SET_UNDERLINE:
+            self.underlined = True
+            reset = False
         elif cmd == self.SET_132_COLUMNS:
             self.columns = 132
         elif cmd == self.SET_80_COLUMNS:
             self.columns = 80
+        elif cmd == self.TURN_OFF_AUTOWRAP:
+            self.autowrap = False
+            reset = False
+        elif cmd == self.TURN_ON_AUTOWRAP:
+            self.autowrap = True
+            reset = False
+        elif cmd in {
+            self.BOX_CHARSET,
+            self.NORMAL_CHARSET,
+            self.TURN_ON_REGION,
+            self.TURN_OFF_REGION,
+            self.DOUBLE_HEIGHT_TOP,
+            self.DOUBLE_HEIGHT_BOTTOM,
+            self.DOUBLE_WIDTH,
+            self.NORMAL_SIZE,
+            self.REQUEST_STATUS,
+            self.REQUEST_CURSOR,
+        }:
+            reset = False
+
+        if reset:
+            # Force a full fetch next time we're asked for the cursor pos.
+            self.cursor = (-1, -1)
 
         self.interface.write(cmd)
 
@@ -175,7 +209,7 @@ class Terminal(ABC):
         return self.cursor
 
     def sendText(self, text: str) -> None:
-        self.cursor = (-1, -1)
+        row, col = self.cursor
         inAlt = False
 
         def alt(char: bytes) -> bytes:
@@ -199,6 +233,33 @@ class Terminal(ABC):
             return ((self.ESCAPE + self.NORMAL_CHARSET) if add else b"") + char
 
         def fb(data: str) -> bytes:
+            nonlocal row
+            nonlocal col
+
+            if row != -1 and col != -1:
+                # Try to calculate where the cursor will be after this.
+                if data in {"\r", "\n"}:
+                    row += 1
+                    col = 1
+                elif ord(data) < 32:
+                    row = -1
+                    col = -1
+                elif data == "\t":
+                    row = -1
+                    col = -1
+                else:
+                    col += 1
+                    if col > self.columns:
+                        if self.autowrap:
+                            col = 1
+                            row += 1
+                        else:
+                            col = self.columns
+
+                if row > self.rows:
+                    row = -1
+                    col = -1
+
             try:
                 return norm(data.encode("ascii"))
             except UnicodeEncodeError:
@@ -281,6 +342,11 @@ class Terminal(ABC):
                                 if self.reversed
                                 else b""
                             )
+                            + (
+                                (self.ESCAPE + self.SET_UNDERLINE)
+                                if self.underlined
+                                else b""
+                            )
                             + b"\x6E"
                             + self.ESCAPE
                             + self.SET_BOLD
@@ -300,14 +366,22 @@ class Terminal(ABC):
                                 if self.reversed
                                 else b""
                             )
+                            + (
+                                (self.ESCAPE + self.SET_UNDERLINE)
+                                if self.underlined
+                                else b""
+                            )
                             + b"\x61"
                             + self.ESCAPE
                             + self.SET_BOLD
                         )
                 if data == "\u2593":
                     if self.bolded:
+                        # We can just display.
                         return alt(b"\x61")
                     else:
+                        # We must bold this for the special drawing character, then un-bold it once
+                        # we're done, and possible add re-reversing.
                         return alt(
                             self.ESCAPE
                             + self.SET_BOLD
@@ -319,6 +393,11 @@ class Terminal(ABC):
                                 if self.reversed
                                 else b""
                             )
+                            + (
+                                (self.ESCAPE + self.SET_UNDERLINE)
+                                if self.underlined
+                                else b""
+                            )
                         )
                 if data == "\u2588":
                     return norm(
@@ -328,6 +407,7 @@ class Terminal(ABC):
                         + self.ESCAPE
                         + (self.SET_REVERSE if self.reversed else self.SET_NORMAL)
                         + ((self.ESCAPE + self.SET_BOLD) if self.bolded else b"")
+                        + ((self.ESCAPE + self.SET_UNDERLINE) if self.underlined else b"")
                     )
 
                 # Degrees symbol.
@@ -362,10 +442,15 @@ class Terminal(ABC):
         self.interface.write(b"".join(fb(s) for s in text))
         self.sendCommand(self.NORMAL_CHARSET)
 
-    def setAutoWrap(self, value: bool = True) -> None:
-        if value:
-            self.sendCommand(self.TURN_ON_AUTOWRAP)
+        if row == -1 or col == -1:
+            self.cursor = (-1, -1)
         else:
+            self.cursor = (row, col)
+
+    def setAutoWrap(self, value: bool = True) -> None:
+        if (not self.autowrap) and value:
+            self.sendCommand(self.TURN_ON_AUTOWRAP)
+        elif self.autowrap and (not value):
             self.sendCommand(self.TURN_OFF_AUTOWRAP)
 
     def clearAutoWrap(self) -> None:
