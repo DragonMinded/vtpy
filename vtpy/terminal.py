@@ -106,6 +106,10 @@ class Terminal(ABC):
         self.cursor: Tuple[int, int] = (-1, -1)
         self.reset()
 
+    def __boxReset(self) -> None:
+        self.interface.write(b"\x0F")
+        self.boxMode = False
+
     def reset(self) -> None:
         self.sendCommand(self.SET_80_COLUMNS)
         self.sendCommand(self.TURN_OFF_REGION)
@@ -115,8 +119,7 @@ class Terminal(ABC):
         self.sendCommand(self.G0_US_CHARSET)
         self.sendCommand(self.G1_BOX_CHARSET)
         self.sendCommand(self.TURN_OFF_AUTOWRAP)
-        self.interface.write(b"\x0F")
-        self.boxMode = False
+        self.__boxReset()
 
     def isOk(self) -> bool:
         self.sendCommand(self.REQUEST_STATUS)
@@ -139,6 +142,9 @@ class Terminal(ABC):
 
         # Whether we've lost track of the cursor with this or not.
         reset = True
+
+        # Whether we've lost track of box mode or not with this.
+        boxReset = False
 
         if cmd == self.SET_NORMAL:
             self.reversed = False
@@ -181,12 +187,21 @@ class Terminal(ABC):
             self.REQUEST_CURSOR,
         }:
             reset = False
+        elif cmd in {
+            self.MOVE_CURSOR_ORIGIN,
+            self.MOVE_CURSOR_UP,
+            self.MOVE_CURSOR_DOWN,
+        }:
+            boxReset = True
 
         if reset:
             # Force a full fetch next time we're asked for the cursor pos.
             self.cursor = (-1, -1)
 
         self.interface.write(cmd)
+
+        if boxReset:
+            self.__boxReset()
 
     def moveCursor(self, row: int, col: int) -> None:
         if row < 1 or row > self.rows:
@@ -196,6 +211,7 @@ class Terminal(ABC):
 
         self.sendCommand(f"[{row};{col}H".encode("ascii"))
         self.cursor = (row, col)
+        self.__boxReset()
 
     def fetchCursor(self) -> Tuple[int, int]:
         if self.cursor[0] != -1 and self.cursor[1] != -1:
@@ -464,8 +480,7 @@ class Terminal(ABC):
         self.interface.write(b"".join(fb(s) for s in text))
 
         if reset:
-            self.interface.write(b"\x0F")
-            self.boxMode = False
+            self.__boxReset()
         else:
             self.boxMode = inAlt
 
