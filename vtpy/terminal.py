@@ -31,8 +31,12 @@ class TerminalException(Exception):
 class Terminal(ABC):
     ESCAPE: bytes = b"\x1B"
 
-    BOX_CHARSET: bytes = b"(0"
-    NORMAL_CHARSET: bytes = b"(B"
+    G0_UK_CHARSET: bytes = b"(A"
+    G0_US_CHARSET: bytes = b"(B"
+    G0_BOX_CHARSET: bytes = b"(0"
+    G1_UK_CHARSET: bytes = b")A"
+    G1_US_CHARSET: bytes = b")B"
+    G1_BOX_CHARSET: bytes = b")0"
 
     REQUEST_STATUS: bytes = b"[5n"
     STATUS_OKAY: bytes = b"[0n"
@@ -89,6 +93,7 @@ class Terminal(ABC):
         self.bolded = False
         self.underlined = False
         self.autowrap = False
+        self.boxMode = False
         self.lastPolled = time.time()
         self.pollFailures = 0
 
@@ -107,7 +112,11 @@ class Terminal(ABC):
         self.sendCommand(self.CLEAR_SCREEN)
         self.sendCommand(self.MOVE_CURSOR_ORIGIN)
         self.sendCommand(self.SET_NORMAL)
+        self.sendCommand(self.G0_US_CHARSET)
+        self.sendCommand(self.G1_BOX_CHARSET)
         self.sendCommand(self.TURN_OFF_AUTOWRAP)
+        self.interface.write(b"\x0F")
+        self.boxMode = False
 
     def isOk(self) -> bool:
         self.sendCommand(self.REQUEST_STATUS)
@@ -156,8 +165,12 @@ class Terminal(ABC):
             self.autowrap = True
             reset = False
         elif cmd in {
-            self.BOX_CHARSET,
-            self.NORMAL_CHARSET,
+            self.G0_UK_CHARSET,
+            self.G0_US_CHARSET,
+            self.G0_BOX_CHARSET,
+            self.G1_UK_CHARSET,
+            self.G1_US_CHARSET,
+            self.G1_BOX_CHARSET,
             self.TURN_ON_REGION,
             self.TURN_OFF_REGION,
             self.DOUBLE_HEIGHT_TOP,
@@ -210,7 +223,12 @@ class Terminal(ABC):
 
     def sendText(self, text: str) -> None:
         row, col = self.cursor
-        inAlt = False
+        inAlt = self.boxMode
+
+        # Some of the super janky things we do for fill-drawing causes the terminal to
+        # get out of sync. The speed-up we get for staying in sync with whether we're in
+        # box mode or normal mode is worth keeping, so give us a way to disable it.
+        reset = False
 
         def alt(char: bytes) -> bytes:
             nonlocal inAlt
@@ -220,7 +238,7 @@ class Terminal(ABC):
                 inAlt = True
                 add = True
 
-            return ((self.ESCAPE + self.BOX_CHARSET) if add else b"") + char
+            return (b"\x0E" if add else b"") + char
 
         def norm(char: bytes) -> bytes:
             nonlocal inAlt
@@ -230,9 +248,10 @@ class Terminal(ABC):
                 inAlt = False
                 add = True
 
-            return ((self.ESCAPE + self.NORMAL_CHARSET) if add else b"") + char
+            return (b"\x0F" if add else b"") + char
 
         def fb(data: str) -> bytes:
+            nonlocal reset
             nonlocal row
             nonlocal col
 
@@ -328,6 +347,7 @@ class Terminal(ABC):
 
                 # Fill-drawing mapping hacks.
                 if data == "\u2591":
+                    reset = True
                     if not self.bolded:
                         # We can just display.
                         return alt(b"\x6E")
@@ -352,6 +372,7 @@ class Terminal(ABC):
                             + self.SET_BOLD
                         )
                 if data == "\u2592":
+                    reset = True
                     if not self.bolded:
                         # We can just display.
                         return alt(b"\x61")
@@ -376,6 +397,7 @@ class Terminal(ABC):
                             + self.SET_BOLD
                         )
                 if data == "\u2593":
+                    reset = True
                     if self.bolded:
                         # We can just display.
                         return alt(b"\x61")
@@ -400,6 +422,7 @@ class Terminal(ABC):
                             )
                         )
                 if data == "\u2588":
+                    reset = True
                     return norm(
                         self.ESCAPE
                         + (self.SET_NORMAL if self.reversed else self.SET_REVERSE)
@@ -438,9 +461,13 @@ class Terminal(ABC):
                 # Unknown unicode.
                 return alt(b"\x60")
 
-        self.sendCommand(self.NORMAL_CHARSET)
         self.interface.write(b"".join(fb(s) for s in text))
-        self.sendCommand(self.NORMAL_CHARSET)
+
+        if reset:
+            self.interface.write(b"\x0F")
+            self.boxMode = False
+        else:
+            self.boxMode = inAlt
 
         if row == -1 or col == -1:
             self.cursor = (-1, -1)
