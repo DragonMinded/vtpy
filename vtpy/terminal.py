@@ -112,6 +112,7 @@ class Terminal(ABC):
 
     def reset(self) -> None:
         self.sendCommand(self.SET_80_COLUMNS)
+        self.sendCommand(f"[1;24r".encode("ascii"))
         self.sendCommand(self.TURN_OFF_REGION)
         self.sendCommand(self.CLEAR_SCREEN)
         self.sendCommand(self.MOVE_CURSOR_ORIGIN)
