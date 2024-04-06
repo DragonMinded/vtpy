@@ -112,7 +112,7 @@ class Terminal(ABC):
 
     def reset(self) -> None:
         self.sendCommand(self.SET_80_COLUMNS)
-        self.sendCommand(f"[1;24r".encode("ascii"))
+        self.sendCommand("[1;24r".encode("ascii"))
         self.sendCommand(self.TURN_OFF_REGION)
         self.sendCommand(self.CLEAR_SCREEN)
         self.sendCommand(self.MOVE_CURSOR_ORIGIN)
@@ -472,8 +472,26 @@ class Terminal(ABC):
                 if data == "\u00a3":
                     return alt(b"\x7d")
                 # Moddle dot.
-                if data == "\u00b7":
+                if data in {"\u00b7", "\u2022"}:
                     return alt(b"\x7e")
+                # Alternate single quotation marks.
+                if data in {"\u2018", "\u2019", "\u201a", "\u201b", "\u2032", "\u2035"}:
+                    return norm(b"'")
+                # Alternate double quotation marks.
+                if data in {"\u201c", "\u201d", "\u201e", "\u201f", "\u2033", "\u2036"}:
+                    return norm(b'"')
+                # Alternate asterisks.
+                if data in {"\u204e", "\u2055"}:
+                    return norm(b"*")
+                # Alternate semicolon.
+                if data == "\u204f":
+                    return norm(b";")
+                # Alternate percent.
+                if data == "\u2052":
+                    return norm(b"%")
+                # Alternate tilde.
+                if data == "\u2053":
+                    return norm(b"~")
 
                 # Unknown unicode.
                 return alt(b"\x60")
