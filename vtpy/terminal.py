@@ -431,7 +431,11 @@ class Terminal(ABC):
                         + self.ESCAPE
                         + (self.SET_REVERSE if self.reversed else self.SET_NORMAL)
                         + ((self.ESCAPE + self.SET_BOLD) if self.bolded else b"")
-                        + ((self.ESCAPE + self.SET_UNDERLINE) if self.underlined else b"")
+                        + (
+                            (self.ESCAPE + self.SET_UNDERLINE)
+                            if self.underlined
+                            else b""
+                        )
                     )
 
                 # Degrees symbol.
