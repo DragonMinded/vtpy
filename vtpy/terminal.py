@@ -97,6 +97,11 @@ class Terminal(ABC):
         self.lastPolled = time.time()
         self.pollFailures = 0
 
+        # When saving/loading cursor position, the graphics rendering modes are
+        # also saved/restored. These represnet the last bold, underline, reverse
+        # and box mode settings.
+        self.lastModes: Tuple[bool, bool, bool, bool] = (False, False, False, False)
+
         # First, connect and figure out what's going on.
         self.checkOk()
 
@@ -105,10 +110,6 @@ class Terminal(ABC):
         self.rows: int = 24
         self.cursor: Tuple[int, int] = (-1, -1)
         self.reset()
-
-    def __boxReset(self) -> None:
-        self.interface.write(b"\x0F")
-        self.boxMode = False
 
     def reset(self) -> None:
         self.sendCommand(self.SET_80_COLUMNS)
@@ -120,7 +121,8 @@ class Terminal(ABC):
         self.sendCommand(self.G0_US_CHARSET)
         self.sendCommand(self.G1_BOX_CHARSET)
         self.sendCommand(self.TURN_OFF_AUTOWRAP)
-        self.__boxReset()
+        self.interface.write(b"\x0F")
+        self.boxMode = False
 
     def isOk(self) -> bool:
         self.sendCommand(self.REQUEST_STATUS)
@@ -143,9 +145,6 @@ class Terminal(ABC):
 
         # Whether we've lost track of the cursor with this or not.
         reset = True
-
-        # Whether we've lost track of box mode or not with this.
-        boxReset = False
 
         if cmd == self.SET_NORMAL:
             self.reversed = False
@@ -188,21 +187,17 @@ class Terminal(ABC):
             self.REQUEST_CURSOR,
         }:
             reset = False
-        elif cmd in {
-            self.MOVE_CURSOR_ORIGIN,
-            self.MOVE_CURSOR_UP,
-            self.MOVE_CURSOR_DOWN,
-        }:
-            boxReset = True
+        elif cmd == self.SAVE_CURSOR:
+            reset = False
+            self.lastMode = (self.bolded, self.underlined, self.reversed, self.boxMode)
+        elif cmd == self.RESTORE_CURSOR:
+            self.bolded, self.underlined, self.reversed, self.boxMode = self.lastMode
 
         if reset:
             # Force a full fetch next time we're asked for the cursor pos.
             self.cursor = (-1, -1)
 
         self.interface.write(cmd)
-
-        if boxReset:
-            self.__boxReset()
 
     def moveCursor(self, row: int, col: int) -> None:
         if row < 1 or row > self.rows:
@@ -212,7 +207,6 @@ class Terminal(ABC):
 
         self.sendCommand(f"[{row};{col}H".encode("ascii"))
         self.cursor = (row, col)
-        self.__boxReset()
 
     def fetchCursor(self) -> Tuple[int, int]:
         if self.cursor[0] != -1 and self.cursor[1] != -1:
@@ -242,11 +236,6 @@ class Terminal(ABC):
         row, col = self.cursor
         inAlt = self.boxMode
 
-        # Some of the super janky things we do for fill-drawing causes the terminal to
-        # get out of sync. The speed-up we get for staying in sync with whether we're in
-        # box mode or normal mode is worth keeping, so give us a way to disable it.
-        reset = False
-
         def alt(char: bytes) -> bytes:
             nonlocal inAlt
 
@@ -268,7 +257,6 @@ class Terminal(ABC):
             return (b"\x0F" if add else b"") + char
 
         def fb(data: str) -> bytes:
-            nonlocal reset
             nonlocal row
             nonlocal col
 
@@ -364,7 +352,6 @@ class Terminal(ABC):
 
                 # Fill-drawing mapping hacks.
                 if data == "\u2591":
-                    reset = True
                     if not self.bolded:
                         # We can just display.
                         return alt(b"\x6E")
@@ -389,7 +376,6 @@ class Terminal(ABC):
                             + self.SET_BOLD
                         )
                 if data == "\u2592":
-                    reset = True
                     if not self.bolded:
                         # We can just display.
                         return alt(b"\x61")
@@ -414,7 +400,6 @@ class Terminal(ABC):
                             + self.SET_BOLD
                         )
                 if data == "\u2593":
-                    reset = True
                     if self.bolded:
                         # We can just display.
                         return alt(b"\x61")
@@ -439,7 +424,6 @@ class Terminal(ABC):
                             )
                         )
                 if data == "\u2588":
-                    reset = True
                     return norm(
                         self.ESCAPE
                         + (self.SET_NORMAL if self.reversed else self.SET_REVERSE)
@@ -498,10 +482,7 @@ class Terminal(ABC):
 
         self.interface.write(b"".join(fb(s) for s in text))
 
-        if reset:
-            self.__boxReset()
-        else:
-            self.boxMode = inAlt
+        self.boxMode = inAlt
 
         if row == -1 or col == -1:
             self.cursor = (-1, -1)
