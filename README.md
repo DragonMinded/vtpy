@@ -1,1 +1,1 @@
-A simple library for abstracting talking to a VT-100 terminal over serial or stdin/stdout redirects.
+A simple library for abstracting talking to a VT-100 terminal over serial or stdin/stdout redirects. You can include this in your project by adding the line `vtpy @ git+https://github.com/DragonMinded/vtpy.git` to your requirements.txt file, or adding it as a requirement to your alternative dependency management system of choice.

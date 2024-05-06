@@ -2,12 +2,14 @@ from distutils.core import setup
 
 setup(
     name="VTPy",
-    version="1.0.16",
+    version="1.0.17",
     description="Python abstraction layer for VT-100 terminals.",
     author="Jennifer Taylor",
     author_email="jen@superjentendo.com",
     url="https://github.com/DragonMinded/vtpy",
     packages=["vtpy"],
-    requires=["pySerial"],
+    install_requires=[
+        req for req in open("requirements.txt").read().split("\n") if len(req) > 0
+    ],
     include_package_data=True,
 )
