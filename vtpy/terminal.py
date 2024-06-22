@@ -61,6 +61,12 @@ class Terminal(ABC):
     TURN_ON_AUTOWRAP: bytes = b"[?7h"
     TURN_OFF_AUTOWRAP: bytes = b"[?7l"
 
+    TURN_ON_WRAP_FORWARD_MODE: bytes = b"[33h"
+    TURN_OFF_WRAP_FORWARD_MODE: bytes = b"[33l"
+
+    TURN_ON_WRAP_BACKWARD_MODE: bytes = b"[34h"
+    TURN_OFF_WRAP_BACKWARD_MODE: bytes = b"[34l"
+
     SET_BOLD: bytes = b"[1m"
     SET_NORMAL: bytes = b"[0m"
     SET_UNDERLINE: bytes = b"[4m"
